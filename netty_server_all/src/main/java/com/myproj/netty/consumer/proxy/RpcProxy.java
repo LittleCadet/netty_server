@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 /**
+ * RPC调用的代理类
  * @author shenxie
  * @date 2021/1/24
  */
@@ -33,15 +34,13 @@ public class RpcProxy {
 
     /**
      * 反射 创建代理
-     * @param clazz
+     * @param clazz 接口
      * @return
      */
     public static <T> T create(Class<?> clazz) {
         MethodProxy proxy = new MethodProxy(clazz);
 
-        // isInstance的入参：不确定是不是proxy
         Class<?>[] interfaces = clazz.isInterface() ? new Class[]{clazz} : clazz.getInterfaces();
-//        Class<?>[] interfaces = clazz.getInterfaces();
 
         T result  = (T) Proxy.newProxyInstance(clazz.getClassLoader(), interfaces, proxy);
         return result;
@@ -64,18 +63,17 @@ public class RpcProxy {
                 return method.invoke(this, args);
             }else{
                 // 如果传入的是一个接口
-                return rpcInvoke(proxy, method , args);
+                return rpcInvoke( method , args);
             }
         }
 
         /**
          * 实现接口的核心方法
-         * @param proxy
          * @param method
          * @param args
          * @return
          */
-        public Object rpcInvoke(Object proxy, Method method , Object[] args) throws InterruptedException {
+        public Object rpcInvoke(Method method , Object[] args) throws InterruptedException {
             // 传输协议封装
             InvokerProtocol msg = new InvokerProtocol();
             msg.setClassName(this.clazz.getName());
@@ -95,9 +93,13 @@ public class RpcProxy {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
                             ChannelPipeline pipeline = ch.pipeline();
+                            // 协议的编码器
                             pipeline.addLast("frameDecoder",new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0 ,4, 0 ,4));
+                            // 协议解码器
                             pipeline.addLast("frameEncoder",new LengthFieldPrepender(4));
+                            // 对象参数类型的编码器
                             pipeline.addLast("encoder", new ObjectEncoder());
+                            // 对象参数类型的解码器
                             pipeline.addLast("decoder", new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)));
                             pipeline.addLast("handler",consumerHandler);
                         }
